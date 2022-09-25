@@ -52,6 +52,7 @@ public class ExpenseController {
         HashMap<String, Object> map = new HashMap<>();
         map.put("taskUser", userId);
         map.put("money", money);
+        map.put("descption", descption);
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Expense", map);
         return "提交成功.流程Id为：" + processInstance.getId();
     }
@@ -65,6 +66,7 @@ public class ExpenseController {
         List<Task> tasks = taskService.createTaskQuery().taskAssignee(userId).orderByTaskCreateTime().desc().list();
         for (Task task : tasks) {
             System.out.println(task.toString());
+            System.out.println(task.getId());
         }
         return tasks.toArray().toString();
     }
