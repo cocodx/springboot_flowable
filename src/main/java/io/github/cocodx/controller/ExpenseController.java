@@ -1,24 +1,15 @@
 package io.github.cocodx.controller;
 
 
-import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.engine.*;
 import org.flowable.engine.repository.ProcessDefinition;
-import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
-import org.flowable.image.ProcessDiagramGenerator;
 import org.flowable.task.api.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import javax.servlet.http.HttpServletResponse;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +31,9 @@ public class ExpenseController {
     private RepositoryService repositoryService;
     @Autowired
     private ProcessEngine processEngine;
+
+    @Autowired
+    private HistoryService historyService;
 
     /**
      * 获取流程模型
@@ -108,6 +102,33 @@ public class ExpenseController {
     }
 
     /**
+     * 转办任务，把任务转给别人处理【比如说，某个人这几天请假了，他就把任务转给别人处理】
+     * @param taskId
+     * @return
+     */
+    @ResponseBody
+    @RequestMapping("/transferOther")
+    public String transferOther(String taskId,String curUserId,String acceptUserId){
+        taskService.setOwner(taskId, curUserId);
+        taskService.setAssignee(taskId,acceptUserId);
+        return "转办成功";
+    }
+
+    /**
+     * 委派任务
+     * 是将任务节点分给其他人处理，等其他人处理好之后，委派任务会自动回到委派人的任务中
+     * @return
+     */
+    @ResponseBody
+    @RequestMapping("/delegateOther")
+    public String delegateOther(String taskId,String curUserId,String acceptUserId){
+        taskService.setOwner(taskId, curUserId);
+        taskService.delegateTask(taskId,acceptUserId);
+        return "委派成功";
+    }
+
+
+    /**
      * 拒绝
      */
     @ResponseBody
@@ -119,89 +140,5 @@ public class ExpenseController {
         return "reject";
     }
 
-    /**
-     * 生成流程图
-     *
-     * @param processId 任务ID
-     */
-    @RequestMapping(value = "processDiagram")
-    public void genProcessDiagram(HttpServletResponse httpServletResponse, String processId) throws Exception {
-        ProcessInstance pi = runtimeService.createProcessInstanceQuery().processInstanceId(processId).singleResult();
 
-        //流程走完的不显示图
-        if (pi == null) {
-            return;
-        }
-        Task task = taskService.createTaskQuery().processInstanceId(pi.getId()).singleResult();
-        //使用流程实例ID，查询正在执行的执行对象表，返回流程实例对象
-        String InstanceId = task.getProcessInstanceId();
-        List<Execution> executions = runtimeService
-                .createExecutionQuery()
-                .processInstanceId(InstanceId)
-                .list();
-
-        //得到正在执行的Activity的Id
-        List<String> activityIds = new ArrayList<>();
-        List<String> flows = new ArrayList<>();
-        for (Execution exe : executions) {
-            List<String> ids = runtimeService.getActiveActivityIds(exe.getId());
-            activityIds.addAll(ids);
-        }
-
-        //获取流程图
-        BpmnModel bpmnModel = repositoryService.getBpmnModel(pi.getProcessDefinitionId());
-        ProcessEngineConfiguration engconf = processEngine.getProcessEngineConfiguration();
-        ProcessDiagramGenerator diagramGenerator = engconf.getProcessDiagramGenerator();
-        InputStream in = diagramGenerator.generateDiagram(bpmnModel, "png", activityIds,
-                flows, "宋体", "宋体", "宋体",
-                this.getClass().getClassLoader(), 1.0, true);
-        OutputStream out = null;
-        byte[] buf = new byte[1024];
-        int legth = 0;
-        try {
-            out = httpServletResponse.getOutputStream();
-            while ((legth = in.read(buf)) != -1) {
-                out.write(buf, 0, legth);
-            }
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (out != null) {
-                out.close();
-            }
-        }
-    }
-
-    /**
-     * 获取流程定义图片
-     * @param httpServletResponse
-     * @param processDefinitionId 流程定义id
-     * @throws Exception
-     */
-    @RequestMapping(value = "processModelDiagram")
-    public void genProcessModelDiagram(HttpServletResponse httpServletResponse, String processDefinitionId) throws Exception {
-//        //获取bpmnModel对象
-        BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
-        //生成图片流
-        ProcessDiagramGenerator diagramGenerator = processEngine.getProcessEngineConfiguration().getProcessDiagramGenerator();
-        InputStream in = diagramGenerator.generateDiagram(bpmnModel,"png", Collections.emptyList(),Collections.emptyList(), "宋体", "宋体", "宋体",
-                this.getClass().getClassLoader(), 1.0, true);
-        byte[] buf = new byte[1024];
-        int legth = 0;
-        OutputStream out = null;
-        try {
-            out = httpServletResponse.getOutputStream();
-            while ((legth = in.read(buf)) != -1) {
-                out.write(buf, 0, legth);
-            }
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (out != null) {
-                out.close();
-            }
-        }
-    }
 }
