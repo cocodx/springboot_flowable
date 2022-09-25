@@ -3,12 +3,14 @@ package io.github.cocodx.controller;
 
 import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.engine.*;
+import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.image.ProcessDiagramGenerator;
 import org.flowable.task.api.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -16,8 +18,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author amazfit
@@ -37,22 +41,34 @@ public class ExpenseController {
     @Autowired
     private ProcessEngine processEngine;
 
+    /**
+     * 获取流程模型
+     * @return
+     */
+    @RequestMapping("/modelList")
+    @ResponseBody
+    public List<String> list(){
+        List<ProcessDefinition> processList = repositoryService.createProcessDefinitionQuery().list();
+        return processList.stream().map(ProcessDefinition::getName).collect(Collectors.toList());
+    }
+
+
 
     /**
      * 添加报销
      *
      * @param userId    用户Id
      * @param money     报销金额
-     * @param descption 描述
+     * @param description 描述
      */
     @RequestMapping(value = "add")
     @ResponseBody
-    public String addExpense(String userId, Integer money, String descption) {
+    public String addExpense(String userId, Integer money, String description) {
         //启动流程
         HashMap<String, Object> map = new HashMap<>();
         map.put("taskUser", userId);
         map.put("money", money);
-        map.put("descption", descption);
+        map.put("description", description);
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Expense", map);
         return "提交成功.流程Id为：" + processInstance.getId();
     }
@@ -138,9 +154,42 @@ public class ExpenseController {
         ProcessDiagramGenerator diagramGenerator = engconf.getProcessDiagramGenerator();
         InputStream in = diagramGenerator.generateDiagram(bpmnModel, "png", activityIds,
                 flows, "宋体", "宋体", "宋体",
-                this.getClass().getClassLoader(), 1.0, true);OutputStream out = null;
+                this.getClass().getClassLoader(), 1.0, true);
+        OutputStream out = null;
         byte[] buf = new byte[1024];
         int legth = 0;
+        try {
+            out = httpServletResponse.getOutputStream();
+            while ((legth = in.read(buf)) != -1) {
+                out.write(buf, 0, legth);
+            }
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (out != null) {
+                out.close();
+            }
+        }
+    }
+
+    /**
+     * 获取流程定义图片
+     * @param httpServletResponse
+     * @param processDefinitionId 流程定义id
+     * @throws Exception
+     */
+    @RequestMapping(value = "processModelDiagram")
+    public void genProcessModelDiagram(HttpServletResponse httpServletResponse, String processDefinitionId) throws Exception {
+//        //获取bpmnModel对象
+        BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
+        //生成图片流
+        ProcessDiagramGenerator diagramGenerator = processEngine.getProcessEngineConfiguration().getProcessDiagramGenerator();
+        InputStream in = diagramGenerator.generateDiagram(bpmnModel,"png", Collections.emptyList(),Collections.emptyList(), "宋体", "宋体", "宋体",
+                this.getClass().getClassLoader(), 1.0, true);
+        byte[] buf = new byte[1024];
+        int legth = 0;
+        OutputStream out = null;
         try {
             out = httpServletResponse.getOutputStream();
             while ((legth = in.read(buf)) != -1) {
