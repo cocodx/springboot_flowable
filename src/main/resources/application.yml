@@ -5,6 +5,13 @@ flowable:
   ##关闭定时任务JOB
   async-executor-activate: false
   database-schema-update: true
+  idm:
+    app:
+      admin:
+        password: test
+        user-id: admin
+        first-name: admin
+        last-name: admin
 
 spring:
   datasource:
